@@ -60,10 +60,8 @@ async function runBrowserPhase(
 
     const screenshot = `data:image/jpeg;base64,${Buffer.from(screenshotBuffer).toString("base64")}`;
 
-    const rawText = await page.evaluate(
-      // @ts-expect-error — runs in browser context where `document` exists
-      () => document.body.innerText
-    );
+    // @ts-expect-error — runs in browser context where document exists
+    const rawText = await page.evaluate(() => document.body.innerText);
     const pageText = rawText.slice(0, 6000);
 
     const pageTitle = await page.title();
