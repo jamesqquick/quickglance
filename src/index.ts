@@ -33,7 +33,23 @@ interface BrowserResult {
 function isValidUrl(input: string): boolean {
   try {
     const parsed = new URL(input);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname === "0.0.0.0" ||
+      hostname.startsWith("10.") ||
+      hostname.startsWith("192.168.") ||
+      hostname.startsWith("169.254.") ||
+      hostname.endsWith(".local") ||
+      hostname.endsWith(".internal") ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
+    ) {
+      return false;
+    }
+    return true;
   } catch {
     return false;
   }
@@ -48,7 +64,7 @@ async function runBrowserPhase(
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
     await page.goto(targetUrl, {
-      waitUntil: "networkidle0",
+      waitUntil: "networkidle2",
       timeout: 15000,
     });
 
@@ -166,9 +182,17 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/analyze" && request.method === "POST") {
+      let body: Partial<AnalyzeRequest>;
       try {
-        const body = (await request.json()) as Partial<AnalyzeRequest>;
+        body = (await request.json()) as Partial<AnalyzeRequest>;
+      } catch {
+        return Response.json(
+          { error: "Invalid request body. Expected JSON with 'url' and 'expectedTakeaway'." },
+          { status: 400 }
+        );
+      }
 
+      try {
         if (!body.url || !isValidUrl(body.url)) {
           return Response.json(
             { error: "Invalid URL provided. Must be a valid HTTP or HTTPS URL." },
@@ -179,6 +203,13 @@ export default {
         if (!body.expectedTakeaway || body.expectedTakeaway.trim().length === 0) {
           return Response.json(
             { error: "Expected takeaway is required." },
+            { status: 400 }
+          );
+        }
+
+        if (body.expectedTakeaway.trim().length > 500) {
+          return Response.json(
+            { error: "Expected takeaway must be under 500 characters." },
             { status: 400 }
           );
         }
@@ -229,9 +260,10 @@ export default {
           analysis,
         } satisfies AnalyzeResponse);
       } catch (e) {
+        const message = e instanceof Error ? e.message : "An unexpected error occurred";
         return Response.json(
-          { error: "Invalid request body. Expected JSON with 'url' and 'expectedTakeaway'." },
-          { status: 400 }
+          { error: `Internal error: ${message}` },
+          { status: 500 }
         );
       }
     }

@@ -412,7 +412,12 @@
           body: JSON.stringify({ url, expectedTakeaway }),
         });
 
-        const data = await res.json();
+        let data;
+        try {
+          data = await res.json();
+        } catch {
+          throw new Error("Server returned an unexpected response. Please try again.");
+        }
 
         if (!res.ok) {
           throw new Error(data.error || "Something went wrong");
