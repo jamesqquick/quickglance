@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analysis Results · QuickGlance</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Instrument+Serif&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --background: #f5f1e8;
+      --foreground: #1a1614;
+      --muted: #6b6157;
+      --accent: #8b4513;
+      --accent-light: #a85a1f;
+      --border: rgba(26, 22, 20, 0.1);
+      --border-strong: rgba(26, 22, 20, 0.2);
+      --surface: #faf7f0;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+        Monaco, Consolas, monospace;
+      background: var(--background);
+      color: var(--foreground);
+      line-height: 1.7;
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    .font-serif {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-weight: 400;
+      letter-spacing: -0.01em;
+    }
+
+    /* Header */
+    header.site-header {
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      backdrop-filter: blur(8px);
+      background: rgba(245, 241, 232, 0.95);
+    }
+
+    .container-custom {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    .nav-inner {
+      padding: 1.75rem 0 2rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .site-title {
+      font-size: 1.75rem;
+      line-height: 1.2;
+      position: relative;
+      display: inline-block;
+    }
+
+    @media (min-width: 768px) {
+      .site-title {
+        font-size: 2.5rem;
+      }
+    }
+
+    .site-title a {
+      color: inherit;
+      text-decoration: none;
+      position: relative;
+    }
+
+    .site-title-underline {
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      height: 2px;
+      width: 0;
+      background: var(--accent);
+      transition: width 0.5s ease;
+    }
+
+    .site-title a:hover .site-title-underline {
+      width: 100%;
+    }
+
+    .site-tagline {
+      font-size: 10px;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      margin-top: 0.5rem;
+    }
+
+    .header-link {
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: color 0.2s ease;
+      align-self: center;
+    }
+
+    .header-link:hover {
+      color: var(--accent);
+    }
+
+    .header-link .arrow {
+      transition: transform 0.2s ease;
+    }
+
+    .header-link:hover .arrow {
+      transform: translateX(-3px);
+    }
+
+    /* Main */
+    main {
+      min-height: 60vh;
+    }
+
+    .section-padding {
+      padding: 3rem 0 5rem;
+    }
+
+    @media (min-width: 768px) {
+      .section-padding {
+        padding: 4rem 0 6rem;
+      }
+    }
+
+    /* Top meta row */
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1.5rem;
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .meta-block {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .meta-eyebrow {
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+
+    .results-title {
+      font-size: 1.75rem;
+      line-height: 1.2;
+      margin-bottom: 0.6rem;
+    }
+
+    @media (min-width: 768px) {
+      .results-title {
+        font-size: 2.5rem;
+      }
+    }
+
+    .meta-target {
+      font-size: 13px;
+      color: var(--muted);
+      word-break: break-all;
+    }
+
+    .meta-target a {
+      color: var(--foreground);
+      text-decoration: none;
+      border-bottom: 1px solid var(--border-strong);
+      transition: border-color 0.2s ease, color 0.2s ease;
+    }
+
+    .meta-target a:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .meta-takeaway {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 0.4rem;
+      line-height: 1.6;
+    }
+
+    .meta-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.5rem;
+    }
+
+    .cached-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 0.35rem 0.6rem;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .cached-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .rerun-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.65rem 1.25rem;
+      background: var(--background);
+      color: var(--foreground);
+      border: 1px solid var(--border-strong);
+      font-size: 11px;
+      font-family: inherit;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .rerun-btn:hover:not(:disabled) {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .rerun-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Results grid */
+    .results-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2.5rem;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .results-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+      }
+    }
+
+    /* Screenshot */
+    .screenshot-card {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      overflow: hidden;
+      position: sticky;
+      top: 8rem;
+    }
+
+    @media (max-width: 900px) {
+      .screenshot-card {
+        position: static;
+      }
+    }
+
+    .browser-bar {
+      background: var(--background);
+      border-bottom: 1px solid var(--border);
+      padding: 0.6rem 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .browser-bar .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--border-strong);
+    }
+
+    .browser-bar .url-pill {
+      margin-left: 0.75rem;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      flex: 1;
+      text-align: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding-right: 2.25rem;
+    }
+
+    .screenshot-card img {
+      width: 100%;
+      display: block;
+    }
+
+    /* Report */
+    .report-card {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    .grade-block {
+      display: flex;
+      align-items: flex-start;
+      gap: 1.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .grade-badge {
+      flex-shrink: 0;
+      width: 80px;
+      height: 80px;
+      border: 1px solid var(--border-strong);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 3rem;
+      line-height: 1;
+      position: relative;
+    }
+
+    .grade-badge::before {
+      content: "GRADE";
+      position: absolute;
+      top: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--background);
+      padding: 0 0.4rem;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      color: var(--muted);
+    }
+
+    .grade-a { color: #2e7d32; border-color: rgba(46, 125, 50, 0.4); }
+    .grade-b { color: #558b2f; border-color: rgba(85, 139, 47, 0.4); }
+    .grade-c { color: #c47f00; border-color: rgba(196, 127, 0, 0.4); }
+    .grade-d { color: #ef6c00; border-color: rgba(239, 108, 0, 0.4); }
+    .grade-f { color: #c62828; border-color: rgba(198, 40, 40, 0.4); }
+    .grade-unknown { color: var(--muted); }
+
+    .grade-meta {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .grade-meta-label {
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+
+    .main-takeaway {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 1.5rem;
+      line-height: 1.3;
+      color: var(--foreground);
+    }
+
+    @media (min-width: 768px) {
+      .main-takeaway {
+        font-size: 1.75rem;
+      }
+    }
+
+    .alignment-verdict {
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--foreground);
+      padding: 1rem 1.25rem;
+      background: var(--surface);
+      border-left: 2px solid var(--accent);
+    }
+
+    .section { position: relative; }
+
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-num {
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      color: rgba(139, 69, 19, 0.5);
+    }
+
+    .section-title {
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .section-working .section-title { color: #2e7d32; }
+    .section-confusing .section-title { color: #c47f00; }
+    .section-missing .section-title { color: #c62828; }
+
+    .section ul { list-style: none; }
+
+    .section li {
+      position: relative;
+      padding: 0.6rem 0 0.6rem 1.5rem;
+      font-size: 13px;
+      line-height: 1.65;
+      color: var(--foreground);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section li:last-child { border-bottom: none; }
+
+    .section li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 1.05rem;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .section-working li::before { background: #4caf50; }
+    .section-confusing li::before { background: #f6a821; }
+    .section-missing li::before { background: #e53935; }
+
+    .empty-list {
+      font-size: 12px;
+      color: var(--muted);
+      font-style: italic;
+      padding: 0.5rem 0;
+    }
+
+    /* States: loading + error */
+    .state-block {
+      padding: 4rem 2rem;
+      text-align: center;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .state-block .eyebrow {
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+
+    .state-block h2 {
+      font-size: 1.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .state-block p {
+      font-size: 13px;
+      color: var(--muted);
+      max-width: 480px;
+      margin: 0 auto 1.5rem;
+      line-height: 1.7;
+    }
+
+    .state-block .home-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      background: var(--foreground);
+      color: var(--background);
+      text-decoration: none;
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      transition: all 0.2s ease;
+    }
+
+    .state-block .home-link:hover {
+      background: var(--accent);
+    }
+
+    /* Loading overlay (re-used from index for re-run flow) */
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(245, 241, 232, 0.92);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .loading-overlay.is-open { display: flex; opacity: 1; }
+
+    .loading-panel {
+      width: 100%;
+      max-width: 880px;
+      text-align: center;
+    }
+
+    .loading-eyebrow {
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 1rem;
+    }
+
+    .loading-title {
+      font-size: 2rem;
+      line-height: 1.2;
+      margin-bottom: 0.75rem;
+    }
+
+    @media (min-width: 768px) {
+      .loading-title { font-size: 2.75rem; }
+    }
+
+    .loading-subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 3.5rem;
+      line-height: 1.6;
+    }
+
+    .stepper {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      max-width: 360px;
+      margin: 0 auto;
+    }
+
+    @media (min-width: 768px) {
+      .stepper {
+        flex-direction: row;
+        gap: 0;
+        max-width: none;
+        justify-content: space-between;
+        align-items: flex-start;
+      }
+    }
+
+    .stepper::before {
+      content: "";
+      position: absolute;
+      left: 14px;
+      top: 14px;
+      bottom: 14px;
+      width: 1px;
+      background: var(--border-strong);
+      z-index: 0;
+    }
+
+    @media (min-width: 768px) {
+      .stepper::before {
+        left: 0; right: 0; top: 14px; bottom: auto;
+        width: auto; height: 1px; margin: 0 14%;
+      }
+    }
+
+    .stepper-progress {
+      position: absolute;
+      left: 14px;
+      top: 14px;
+      width: 1px;
+      height: 0;
+      background: var(--accent);
+      z-index: 1;
+      transition: height 0.6s ease, width 0.6s ease;
+    }
+
+    @media (min-width: 768px) {
+      .stepper-progress {
+        left: 14%; top: 14px; width: 0; height: 1px; max-width: 72%;
+      }
+    }
+
+    .step {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 1rem;
+      flex: 1;
+      text-align: left;
+    }
+
+    @media (min-width: 768px) {
+      .step {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 1rem;
+      }
+    }
+
+    .step-circle {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border-strong);
+      background: var(--background);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      transition: border-color 0.4s ease, background 0.4s ease, transform 0.3s ease;
+    }
+
+    .step-circle-inner {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: transparent;
+      transition: background 0.4s ease, transform 0.3s ease;
+    }
+
+    .step-num {
+      position: absolute;
+      top: -22px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      color: rgba(139, 69, 19, 0.5);
+    }
+
+    @media (max-width: 767px) {
+      .step-num {
+        position: static; transform: none; margin-right: 0.25rem;
+      }
+    }
+
+    .step-content { min-width: 0; }
+
+    @media (min-width: 768px) {
+      .step-content { max-width: 200px; }
+    }
+
+    .step-label {
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-weight: 600;
+      color: var(--muted);
+      transition: color 0.4s ease;
+      margin-bottom: 0.25rem;
+    }
+
+    .step-desc {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+      opacity: 0.7;
+      transition: opacity 0.4s ease;
+    }
+
+    .step.is-pending .step-circle {
+      border-color: var(--border-strong);
+      background: var(--background);
+    }
+    .step.is-pending .step-circle-inner { background: transparent; }
+
+    .step.is-active .step-circle {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(139, 69, 19, 0.1);
+    }
+    .step.is-active .step-circle-inner {
+      background: var(--accent);
+      animation: blink 1.1s ease-in-out infinite;
+    }
+    .step.is-active .step-label { color: var(--accent); }
+    .step.is-active .step-desc { opacity: 1; color: var(--foreground); }
+
+    .step.is-complete .step-circle {
+      border-color: var(--accent);
+      background: var(--accent);
+    }
+    .step.is-complete .step-circle-inner { display: none; }
+    .step.is-complete .step-circle::after {
+      content: "";
+      width: 10px;
+      height: 5px;
+      border-left: 1.5px solid var(--background);
+      border-bottom: 1.5px solid var(--background);
+      transform: rotate(-45deg) translate(1px, -1px);
+    }
+    .step.is-complete .step-label { color: var(--foreground); }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.25; transform: scale(0.85); }
+    }
+
+    .loading-hint {
+      margin-top: 3rem;
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .loading-hint .dots::after {
+      content: "";
+      display: inline-block;
+      width: 1.2em;
+      text-align: left;
+      animation: dots 1.4s steps(4, end) infinite;
+    }
+
+    @keyframes dots {
+      0% { content: ""; }
+      25% { content: "."; }
+      50% { content: ".."; }
+      75% { content: "..."; }
+      100% { content: ""; }
+    }
+
+    /* Skeleton placeholders while we fetch */
+    .skeleton {
+      animation: skeleton 1.4s ease-in-out infinite;
+      background: linear-gradient(
+        90deg,
+        var(--surface) 0%,
+        rgba(0, 0, 0, 0.04) 50%,
+        var(--surface) 100%
+      );
+      background-size: 200% 100%;
+    }
+
+    @keyframes skeleton {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .skeleton-line { height: 12px; margin-bottom: 0.6rem; }
+    .skeleton-line.short { width: 40%; }
+    .skeleton-line.medium { width: 70%; }
+    .skeleton-block { height: 200px; }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem 0;
+      margin-top: 4rem;
+    }
+
+    footer p {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container-custom">
+      <nav class="nav-inner">
+        <div>
+          <h1 class="font-serif site-title">
+            <a href="/">
+              <span style="position: relative; display: inline-block">
+                QuickGlance
+                <span class="site-title-underline"></span>
+              </span>
+            </a>
+          </h1>
+          <div class="site-tagline">see your page through a visitor's eyes</div>
+        </div>
+        <a href="/" class="header-link">
+          <span class="arrow">&larr;</span>
+          <span>New Analysis</span>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="section-padding">
+      <div class="container-custom" id="page-root">
+        <!-- Loading state -->
+        <div id="page-loading">
+          <div class="meta-row">
+            <div class="meta-block">
+              <div class="meta-eyebrow">Loading</div>
+              <h2 class="font-serif results-title">Fetching analysis&hellip;</h2>
+              <div class="skeleton skeleton-line medium" style="margin-top: 1rem"></div>
+            </div>
+          </div>
+          <div class="results-grid">
+            <div class="skeleton skeleton-block"></div>
+            <div>
+              <div class="skeleton skeleton-line"></div>
+              <div class="skeleton skeleton-line short"></div>
+              <div class="skeleton skeleton-line"></div>
+              <div class="skeleton skeleton-line medium"></div>
+              <div class="skeleton skeleton-line"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Error / not-found state -->
+        <div id="page-error" class="state-block" style="display: none">
+          <div class="eyebrow">Not Found</div>
+          <h2 class="font-serif" id="error-headline">This analysis could not be loaded</h2>
+          <p id="error-detail">The result may have expired (cached for 7 days), or the link may be invalid. Try running a new analysis.</p>
+          <a href="/" class="home-link">
+            <span>&larr;</span>
+            <span>Run a new analysis</span>
+          </a>
+        </div>
+
+        <!-- Results state -->
+        <div id="page-results" style="display: none">
+          <div class="meta-row">
+            <div class="meta-block">
+              <div class="meta-eyebrow">Report</div>
+              <h2 class="font-serif results-title">Findings</h2>
+              <div class="meta-target">
+                <span style="opacity: 0.6">Reviewed&nbsp;</span>
+                <a id="meta-url" href="#" target="_blank" rel="noopener noreferrer"></a>
+              </div>
+              <div class="meta-takeaway" id="meta-takeaway"></div>
+            </div>
+            <div class="meta-actions">
+              <span class="cached-badge" id="cached-badge" style="display: none">
+                <span class="dot"></span>
+                <span id="cached-label">Cached</span>
+              </span>
+              <button type="button" class="rerun-btn" id="rerun-btn">
+                <span>&#10227;</span>
+                <span>Re-run analysis</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="results-grid">
+            <div class="screenshot-card">
+              <div class="browser-bar">
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="url-pill" id="url-pill"></span>
+              </div>
+              <img id="screenshot-img" src="" alt="Screenshot of the analyzed page" />
+            </div>
+            <div class="report-card" id="report-card"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Re-run loading overlay -->
+  <div class="loading-overlay" id="loading-overlay" role="dialog" aria-live="polite" aria-label="Re-running analysis">
+    <div class="loading-panel">
+      <div class="loading-eyebrow">In Progress</div>
+      <h2 class="font-serif loading-title">Re-reading your page</h2>
+      <p class="loading-subtitle">
+        Bypassing the cache and running a fresh analysis. This usually takes 10&ndash;30 seconds.
+      </p>
+
+      <div class="stepper" id="stepper">
+        <div class="stepper-progress" id="stepper-progress"></div>
+
+        <div class="step is-active" data-step="0">
+          <div class="step-circle">
+            <span class="step-num">01</span>
+            <span class="step-circle-inner"></span>
+          </div>
+          <div class="step-content">
+            <div class="step-label">Loading Page</div>
+            <div class="step-desc">Opening a real browser and navigating to your URL</div>
+          </div>
+        </div>
+
+        <div class="step is-pending" data-step="1">
+          <div class="step-circle">
+            <span class="step-num">02</span>
+            <span class="step-circle-inner"></span>
+          </div>
+          <div class="step-content">
+            <div class="step-label">Extracting Site Data</div>
+            <div class="step-desc">Capturing the screenshot and reading visible text</div>
+          </div>
+        </div>
+
+        <div class="step is-pending" data-step="2">
+          <div class="step-circle">
+            <span class="step-num">03</span>
+            <span class="step-circle-inner"></span>
+          </div>
+          <div class="step-content">
+            <div class="step-label">Analyzing With AI</div>
+            <div class="step-desc">Comparing the page to your intended takeaway</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="loading-hint">Working<span class="dots"></span></div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="container-custom">
+      <p>Built on Cloudflare Workers &middot; Browser Rendering &middot; AI</p>
+    </div>
+  </footer>
+
+  <script>
+    const pageLoading = document.getElementById("page-loading");
+    const pageError = document.getElementById("page-error");
+    const pageResults = document.getElementById("page-results");
+    const errorHeadline = document.getElementById("error-headline");
+    const errorDetail = document.getElementById("error-detail");
+
+    const metaUrl = document.getElementById("meta-url");
+    const metaTakeaway = document.getElementById("meta-takeaway");
+    const cachedBadge = document.getElementById("cached-badge");
+    const cachedLabel = document.getElementById("cached-label");
+    const rerunBtn = document.getElementById("rerun-btn");
+    const urlPill = document.getElementById("url-pill");
+    const screenshotImg = document.getElementById("screenshot-img");
+    const reportCard = document.getElementById("report-card");
+
+    const overlayEl = document.getElementById("loading-overlay");
+    const stepperProgress = document.getElementById("stepper-progress");
+    const steps = Array.from(document.querySelectorAll("#stepper .step"));
+
+    let currentResult = null;
+    let stageTimers = [];
+
+    function getIdFromPath() {
+      const parts = window.location.pathname.split("/").filter(Boolean);
+      // Expecting ["results", ":id"]
+      if (parts[0] !== "results" || !parts[1]) return null;
+      return parts[1];
+    }
+
+    function showError(headline, detail) {
+      pageLoading.style.display = "none";
+      pageResults.style.display = "none";
+      pageError.style.display = "block";
+      if (headline) errorHeadline.textContent = headline;
+      if (detail) errorDetail.textContent = detail;
+    }
+
+    function showResults(data) {
+      currentResult = data;
+
+      metaUrl.href = data.url;
+      metaUrl.textContent = data.url;
+      metaTakeaway.textContent = `Intended takeaway: "${data.expectedTakeaway}"`;
+
+      if (data.cached && data.createdAt) {
+        cachedBadge.style.display = "inline-flex";
+        cachedLabel.textContent = `Cached · ${formatRelativeTime(data.createdAt)}`;
+      } else {
+        cachedBadge.style.display = "none";
+      }
+
+      urlPill.textContent = data.url;
+      screenshotImg.src = data.screenshot;
+      screenshotImg.alt = `Screenshot of ${data.url}`;
+      reportCard.innerHTML = renderReportCard(data.analysis);
+
+      pageLoading.style.display = "none";
+      pageError.style.display = "none";
+      pageResults.style.display = "block";
+    }
+
+    function formatRelativeTime(ts) {
+      const diffMs = Date.now() - ts;
+      const minutes = Math.floor(diffMs / 60000);
+      if (minutes < 1) return "just now";
+      if (minutes < 60) return `${minutes} min ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} ago`;
+      const days = Math.floor(hours / 24);
+      return `${days} day${days === 1 ? "" : "s"} ago`;
+    }
+
+    async function loadResult(id) {
+      try {
+        const res = await fetch(`/api/results/${id}`);
+        if (res.status === 404) {
+          showError(
+            "This analysis could not be found",
+            "The result may have expired (cached for 7 days), or the link may be invalid. Try running a new analysis."
+          );
+          return;
+        }
+        if (!res.ok) {
+          let msg = "Failed to load this analysis.";
+          try {
+            const data = await res.json();
+            if (data.error) msg = data.error;
+          } catch {}
+          showError("Something went wrong", msg);
+          return;
+        }
+        const data = await res.json();
+        showResults(data);
+      } catch (err) {
+        showError(
+          "Network error",
+          err && err.message
+            ? err.message
+            : "Could not reach the server. Please try again."
+        );
+      }
+    }
+
+    /* ============= Re-run flow ============= */
+
+    function setStep(activeIndex) {
+      steps.forEach((step, i) => {
+        step.classList.remove("is-pending", "is-active", "is-complete");
+        if (i < activeIndex) step.classList.add("is-complete");
+        else if (i === activeIndex) step.classList.add("is-active");
+        else step.classList.add("is-pending");
+      });
+      updateProgressLine(activeIndex);
+    }
+
+    function completeAllSteps() {
+      steps.forEach((step) => {
+        step.classList.remove("is-pending", "is-active");
+        step.classList.add("is-complete");
+      });
+      updateProgressLine(steps.length);
+    }
+
+    function updateProgressLine(activeIndex) {
+      const ratio = Math.min(activeIndex / (steps.length - 1), 1);
+      const isDesktop = window.matchMedia("(min-width: 768px)").matches;
+      if (isDesktop) {
+        stepperProgress.style.height = "1px";
+        stepperProgress.style.width = `${72 * ratio}%`;
+      } else {
+        stepperProgress.style.width = "1px";
+        stepperProgress.style.height = `${100 * ratio}%`;
+      }
+    }
+
+    function clearStageTimers() {
+      stageTimers.forEach(clearTimeout);
+      stageTimers = [];
+    }
+
+    function startStages() {
+      setStep(0);
+      stageTimers.push(setTimeout(() => setStep(1), 1800));
+      stageTimers.push(setTimeout(() => setStep(2), 4500));
+    }
+
+    function openOverlay() {
+      overlayEl.classList.add("is-open");
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeOverlay() {
+      overlayEl.classList.remove("is-open");
+      document.body.style.overflow = "";
+    }
+
+    rerunBtn.addEventListener("click", async () => {
+      if (!currentResult) return;
+      rerunBtn.disabled = true;
+
+      clearStageTimers();
+      openOverlay();
+      startStages();
+
+      try {
+        const res = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: currentResult.url,
+            expectedTakeaway: currentResult.expectedTakeaway,
+            refresh: true,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Re-run failed");
+
+        clearStageTimers();
+        completeAllSteps();
+        await new Promise((r) => setTimeout(r, 600));
+
+        // Same id (same key), but data has updated. Update the URL just in case.
+        if (data.id && data.id !== currentResult.id) {
+          window.history.replaceState({}, "", `/results/${data.id}`);
+        }
+
+        showResults(data);
+        closeOverlay();
+      } catch (err) {
+        clearStageTimers();
+        closeOverlay();
+        alert(
+          (err && err.message) ||
+            "Re-run failed. Please try again."
+        );
+      } finally {
+        rerunBtn.disabled = false;
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      if (!overlayEl.classList.contains("is-open")) return;
+      const activeIndex = steps.findIndex((s) =>
+        s.classList.contains("is-active")
+      );
+      const completedCount = steps.filter((s) =>
+        s.classList.contains("is-complete")
+      ).length;
+      updateProgressLine(activeIndex >= 0 ? activeIndex : completedCount);
+    });
+
+    /* ============= Render helpers ============= */
+
+    function gradeClass(grade) {
+      const letter = (grade || "?")[0].toUpperCase();
+      if (letter === "A") return "grade-a";
+      if (letter === "B") return "grade-b";
+      if (letter === "C") return "grade-c";
+      if (letter === "D") return "grade-d";
+      if (letter === "F") return "grade-f";
+      return "grade-unknown";
+    }
+
+    function renderList(items) {
+      if (!items || items.length === 0)
+        return '<p class="empty-list">Nothing to report.</p>';
+      return (
+        "<ul>" +
+        items.map((item) => `<li>${escapeHtml(item)}</li>`).join("") +
+        "</ul>"
+      );
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function renderReportCard(analysis) {
+      return `
+        <div class="grade-block">
+          <div class="grade-badge ${gradeClass(analysis.grade)}">${escapeHtml(analysis.grade)}</div>
+          <div class="grade-meta">
+            <div class="grade-meta-label">Main Takeaway</div>
+            <div class="main-takeaway">${escapeHtml(analysis.mainTakeaway)}</div>
+          </div>
+        </div>
+
+        <div class="alignment-verdict">${escapeHtml(analysis.alignmentVerdict)}</div>
+
+        <div class="section section-working">
+          <div class="section-header">
+            <span class="section-num">01</span>
+            <span class="section-title">What's Working</span>
+          </div>
+          ${renderList(analysis.whatsWorking)}
+        </div>
+
+        <div class="section section-confusing">
+          <div class="section-header">
+            <span class="section-num">02</span>
+            <span class="section-title">What's Confusing</span>
+          </div>
+          ${renderList(analysis.whatsConfusing)}
+        </div>
+
+        <div class="section section-missing">
+          <div class="section-header">
+            <span class="section-num">03</span>
+            <span class="section-title">What's Missing</span>
+          </div>
+          ${renderList(analysis.whatsMissing)}
+        </div>
+      `;
+    }
+
+    /* ============= Boot ============= */
+
+    const id = getIdFromPath();
+    if (!id) {
+      showError(
+        "Missing analysis ID",
+        "This URL doesn't contain a valid result ID. Try running a new analysis."
+      );
+    } else {
+      loadResult(id);
+    }
+  </script>
+</body>
+</html>

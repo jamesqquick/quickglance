@@ -1,12 +1,12 @@
 {
-  "name": "landing-page-reviewer",
+  "name": "quickglance",
   "private": true,
   "scripts": {
     "dev": "wrangler dev --remote",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {
-    "@cloudflare/puppeteer": "^0.0.15",
+    "@cloudflare/puppeteer": "^1.1.0",
     "@cloudflare/workers-types": "^4.20250501.0",
     "typescript": "^6.0.3",
     "wrangler": "^4.14.0"

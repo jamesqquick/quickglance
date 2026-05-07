@@ -1,17 +1,32 @@
 {
-  "name": "landing-page-reviewer",
-  "main": "src/index.ts",
-  "compatibility_date": "2026-05-02",
-  "compatibility_flags": ["nodejs_compat"],
-  "browser": {
-    "binding": "BROWSER"
-  },
-  "ai": {
-    "binding": "AI"
-  },
-  "assets": {
-    "directory": "./public",
-    "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
-  }
+	"name": "quickglance",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-05-02",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"browser": {
+		"binding": "BROWSER"
+	},
+	"ai": {
+		"binding": "AI"
+	},
+	"kv_namespaces": [
+		{
+			"binding": "JQQ_BROWSER_RUN_ANALYSES",
+			"id": "b485999435b24c1c8f09ef79d805a42e",
+			"remote": true
+		}
+	],
+	"assets": {
+		"binding": "ASSETS",
+		"directory": "./public",
+		"html_handling": "none",
+		"not_found_handling": "none",
+		"run_worker_first": [
+			"/api/*",
+			"/results/*",
+			"/"
+		]
+	}
 }

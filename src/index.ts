@@ -3,11 +3,14 @@ import puppeteer from "@cloudflare/puppeteer";
 interface Env {
   BROWSER: Fetcher;
   AI: Ai;
+  JQQ_BROWSER_RUN_ANALYSES: KVNamespace;
+  ASSETS: Fetcher;
 }
 
 interface AnalyzeRequest {
   url: string;
   expectedTakeaway: string;
+  refresh?: boolean;
 }
 
 interface AnalysisResult {
@@ -20,8 +23,37 @@ interface AnalysisResult {
 }
 
 interface AnalyzeResponse {
+  id: string;
+  url: string;
+  expectedTakeaway: string;
   screenshot: string;
   analysis: AnalysisResult;
+  cached: boolean;
+  createdAt: number;
+}
+
+interface StoredAnalysis {
+  url: string;
+  expectedTakeaway: string;
+  screenshot: string;
+  analysis: AnalysisResult;
+  createdAt: number;
+}
+
+const CACHE_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
+
+async function computeAnalysisId(
+  url: string,
+  expectedTakeaway: string
+): Promise<string> {
+  const normalized = `${url.trim().toLowerCase()}::${expectedTakeaway.trim()}`;
+  const data = new TextEncoder().encode(normalized);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray
+    .slice(0, 16)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 interface BrowserResult {
@@ -111,28 +143,20 @@ You must respond with ONLY a JSON object (no markdown, no explanation outside th
 THE ACTUAL PAGE CONTENT (what a visitor sees):
 ${pageText}`;
 
-  try {
-    const response = (await env.AI.run("@cf/meta/llama-3.1-8b-instruct", {
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.7,
-      max_tokens: 2048,
-    })) as { response?: string };
+  const response = (await env.AI.run("@cf/meta/llama-3.1-8b-instruct", {
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.7,
+    max_tokens: 2048,
+  })) as { response?: string };
 
-    const text = response.response ?? "";
-    return parseAIResponse(text);
-  } catch (e) {
-    return {
-      mainTakeaway: "AI analysis failed.",
-      grade: "?",
-      alignmentVerdict: `AI inference error: ${e instanceof Error ? e.message : "Unknown error"}`,
-      whatsWorking: [],
-      whatsConfusing: [],
-      whatsMissing: [],
-    };
+  const text = response.response?.trim() ?? "";
+  if (!text) {
+    throw new Error("AI returned an empty response.");
   }
+  return parseAIResponse(text);
 }
 
 function parseAIResponse(raw: string): AnalysisResult {
@@ -142,38 +166,59 @@ function parseAIResponse(raw: string): AnalysisResult {
     jsonStr = jsonMatch[1].trim();
   }
 
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(jsonStr);
-    return {
-      mainTakeaway:
-        typeof parsed.mainTakeaway === "string"
-          ? parsed.mainTakeaway
-          : raw.slice(0, 200),
-      grade:
-        typeof parsed.grade === "string" ? parsed.grade : "?",
-      alignmentVerdict:
-        typeof parsed.alignmentVerdict === "string"
-          ? parsed.alignmentVerdict
-          : "Could not determine alignment.",
-      whatsWorking: Array.isArray(parsed.whatsWorking)
-        ? parsed.whatsWorking.map(String)
-        : [],
-      whatsConfusing: Array.isArray(parsed.whatsConfusing)
-        ? parsed.whatsConfusing.map(String)
-        : [],
-      whatsMissing: Array.isArray(parsed.whatsMissing)
-        ? parsed.whatsMissing.map(String)
-        : [],
-    };
+    parsed = JSON.parse(jsonStr);
   } catch {
-    return {
-      mainTakeaway: raw.slice(0, 300) || "AI returned an unparseable response.",
-      grade: "?",
-      alignmentVerdict: "Could not parse AI response into structured format.",
-      whatsWorking: [],
-      whatsConfusing: [],
-      whatsMissing: [],
-    };
+    throw new Error("AI response was not valid JSON.");
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("AI response was not a JSON object.");
+  }
+
+  const p = parsed as Record<string, unknown>;
+  if (
+    typeof p.mainTakeaway !== "string" ||
+    typeof p.grade !== "string" ||
+    typeof p.alignmentVerdict !== "string" ||
+    !Array.isArray(p.whatsWorking) ||
+    !Array.isArray(p.whatsConfusing) ||
+    !Array.isArray(p.whatsMissing)
+  ) {
+    throw new Error("AI response was missing required fields.");
+  }
+
+  return {
+    mainTakeaway: p.mainTakeaway,
+    grade: p.grade,
+    alignmentVerdict: p.alignmentVerdict,
+    whatsWorking: p.whatsWorking.map(String),
+    whatsConfusing: p.whatsConfusing.map(String),
+    whatsMissing: p.whatsMissing.map(String),
+  };
+}
+
+async function storeAnalysis(
+  env: Env,
+  id: string,
+  payload: StoredAnalysis
+): Promise<void> {
+  await env.JQQ_BROWSER_RUN_ANALYSES.put(id, JSON.stringify(payload), {
+    expirationTtl: CACHE_TTL_SECONDS,
+  });
+}
+
+async function readStoredAnalysis(
+  env: Env,
+  id: string
+): Promise<StoredAnalysis | null> {
+  const raw = await env.JQQ_BROWSER_RUN_ANALYSES.get(id);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as StoredAnalysis;
+  } catch {
+    return null;
   }
 }
 
@@ -181,6 +226,36 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
+    // GET /api/results/:id — fetch a cached analysis by ID
+    if (
+      url.pathname.startsWith("/api/results/") &&
+      request.method === "GET"
+    ) {
+      const id = url.pathname.slice("/api/results/".length).trim();
+      if (!id || !/^[a-f0-9]+$/i.test(id)) {
+        return Response.json({ error: "Invalid result ID." }, { status: 400 });
+      }
+
+      const stored = await readStoredAnalysis(env, id);
+      if (!stored) {
+        return Response.json(
+          { error: "Result not found or expired." },
+          { status: 404 }
+        );
+      }
+
+      return Response.json({
+        id,
+        url: stored.url,
+        expectedTakeaway: stored.expectedTakeaway,
+        screenshot: stored.screenshot,
+        analysis: stored.analysis,
+        cached: true,
+        createdAt: stored.createdAt,
+      } satisfies AnalyzeResponse);
+    }
+
+    // POST /api/analyze — run (or look up cached) analysis
     if (url.pathname === "/api/analyze" && request.method === "POST") {
       let body: Partial<AnalyzeRequest>;
       try {
@@ -214,10 +289,30 @@ export default {
           );
         }
 
+        const trimmedUrl = body.url;
+        const trimmedTakeaway = body.expectedTakeaway.trim();
+        const id = await computeAnalysisId(trimmedUrl, trimmedTakeaway);
+
+        // Cache lookup unless caller explicitly forced a refresh
+        if (!body.refresh) {
+          const cached = await readStoredAnalysis(env, id);
+          if (cached) {
+            return Response.json({
+              id,
+              url: cached.url,
+              expectedTakeaway: cached.expectedTakeaway,
+              screenshot: cached.screenshot,
+              analysis: cached.analysis,
+              cached: true,
+              createdAt: cached.createdAt,
+            } satisfies AnalyzeResponse);
+          }
+        }
+
         // Browser phase
         let browserResult: BrowserResult;
         try {
-          browserResult = await runBrowserPhase(env, body.url);
+          browserResult = await runBrowserPhase(env, trimmedUrl);
         } catch (e) {
           const message =
             e instanceof Error ? e.message : "Unknown browser error";
@@ -235,29 +330,68 @@ export default {
 
         // Handle pages with no text
         if (browserResult.pageText.trim().length === 0) {
-          return Response.json({
+          const emptyAnalysis: AnalysisResult = {
+            mainTakeaway: "This page appears to have no readable text content.",
+            grade: "F",
+            alignmentVerdict: "Unable to assess — no text found on page.",
+            whatsWorking: [],
+            whatsConfusing: ["The page has no visible text content for analysis."],
+            whatsMissing: ["All text content."],
+          };
+          const createdAt = Date.now();
+          await storeAnalysis(env, id, {
+            url: trimmedUrl,
+            expectedTakeaway: trimmedTakeaway,
             screenshot: browserResult.screenshot,
-            analysis: {
-              mainTakeaway: "This page appears to have no readable text content.",
-              grade: "F",
-              alignmentVerdict: "Unable to assess — no text found on page.",
-              whatsWorking: [],
-              whatsConfusing: ["The page has no visible text content for analysis."],
-              whatsMissing: ["All text content."],
-            },
+            analysis: emptyAnalysis,
+            createdAt,
+          });
+          return Response.json({
+            id,
+            url: trimmedUrl,
+            expectedTakeaway: trimmedTakeaway,
+            screenshot: browserResult.screenshot,
+            analysis: emptyAnalysis,
+            cached: false,
+            createdAt,
           } satisfies AnalyzeResponse);
         }
 
         // AI phase
-        const analysis = await runAIPhase(
-          env,
-          browserResult.pageText,
-          body.expectedTakeaway.trim()
-        );
+        let analysis: AnalysisResult;
+        try {
+          analysis = await runAIPhase(
+            env,
+            browserResult.pageText,
+            trimmedTakeaway
+          );
+        } catch (e) {
+          const message =
+            e instanceof Error ? e.message : "Unknown AI error";
+          console.error("AI phase failed:", e);
+          return Response.json(
+            { error: `AI analysis failed: ${message}` },
+            { status: 502 }
+          );
+        }
 
-        return Response.json({
+        const createdAt = Date.now();
+        await storeAnalysis(env, id, {
+          url: trimmedUrl,
+          expectedTakeaway: trimmedTakeaway,
           screenshot: browserResult.screenshot,
           analysis,
+          createdAt,
+        });
+
+        return Response.json({
+          id,
+          url: trimmedUrl,
+          expectedTakeaway: trimmedTakeaway,
+          screenshot: browserResult.screenshot,
+          analysis,
+          cached: false,
+          createdAt,
         } satisfies AnalyzeResponse);
       } catch (e) {
         const message = e instanceof Error ? e.message : "An unexpected error occurred";
@@ -266,6 +400,18 @@ export default {
           { status: 500 }
         );
       }
+    }
+
+    // GET / — serve the form page
+    if (url.pathname === "/" && request.method === "GET") {
+      const homeUrl = new URL("/index.html", url.origin);
+      return env.ASSETS.fetch(new Request(homeUrl.toString()));
+    }
+
+    // GET /results/:id — serve the results HTML page
+    if (url.pathname.startsWith("/results/") && request.method === "GET") {
+      const resultsUrl = new URL("/results.html", url.origin);
+      return env.ASSETS.fetch(new Request(resultsUrl.toString()));
     }
 
     return Response.json({ error: "Not found" }, { status: 404 });
