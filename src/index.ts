@@ -5,6 +5,7 @@ interface Env {
   AI: Ai;
   JQQ_BROWSER_RUN_ANALYSES: KVNamespace;
   ASSETS: Fetcher;
+  ANALYZE_LIMITER: RateLimit;
 }
 
 interface AnalyzeRequest {
@@ -257,6 +258,15 @@ export default {
 
     // POST /api/analyze — run (or look up cached) analysis
     if (url.pathname === "/api/analyze" && request.method === "POST") {
+      const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+      const { success } = await env.ANALYZE_LIMITER.limit({ key: ip });
+      if (!success) {
+        return new Response("Too Many Requests", {
+          status: 429,
+          headers: { "Retry-After": "60" },
+        });
+      }
+
       let body: Partial<AnalyzeRequest>;
       try {
         body = (await request.json()) as Partial<AnalyzeRequest>;

@@ -18,6 +18,13 @@
 			"remote": true
 		}
 	],
+	"ratelimits": [
+		{
+			"name": "ANALYZE_LIMITER",
+			"namespace_id": "1001",
+			"simple": { "limit": 10, "period": 60 }
+		}
+	],
 	"assets": {
 		"binding": "ASSETS",
 		"directory": "./public",
