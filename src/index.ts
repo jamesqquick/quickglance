@@ -1,13 +1,3 @@
-import puppeteer from "@cloudflare/puppeteer";
-
-interface Env {
-  BROWSER: Fetcher;
-  AI: Ai;
-  JQQ_BROWSER_RUN_ANALYSES: KVNamespace;
-  ASSETS: Fetcher;
-  ANALYZE_LIMITER: RateLimit;
-}
-
 interface AnalyzeRequest {
   url: string;
   expectedTakeaway: string;
@@ -43,11 +33,28 @@ interface StoredAnalysis {
 
 const CACHE_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
+class BrowserSnapshotError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number
+  ) {
+    super(message);
+    this.name = "BrowserSnapshotError";
+  }
+}
+
+class AIResponseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AIResponseError";
+  }
+}
+
 async function computeAnalysisId(
   url: string,
   expectedTakeaway: string
 ): Promise<string> {
-  const normalized = `${url.trim().toLowerCase()}::${expectedTakeaway.trim()}`;
+  const normalized = `${new URL(url.trim()).toString()}::${expectedTakeaway.trim()}`;
   const data = new TextEncoder().encode(normalized);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -59,15 +66,29 @@ async function computeAnalysisId(
 
 interface BrowserResult {
   screenshot: string;
-  pageText: string;
+  pageMarkdown: string;
   pageTitle: string;
+}
+
+interface BrowserSnapshotResponse {
+  success: boolean;
+  result?: {
+    screenshot?: string;
+    markdown?: string;
+  };
+  meta?: {
+    title?: string;
+  };
+  errors?: Array<{
+    message: string;
+  }>;
 }
 
 function isValidUrl(input: string): boolean {
   try {
     const parsed = new URL(input);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
-    const hostname = parsed.hostname.toLowerCase();
+    const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
     if (
       hostname === "localhost" ||
       hostname === "127.0.0.1" ||
@@ -76,6 +97,10 @@ function isValidUrl(input: string): boolean {
       hostname.startsWith("10.") ||
       hostname.startsWith("192.168.") ||
       hostname.startsWith("169.254.") ||
+      (hostname.includes(":") &&
+        (hostname.startsWith("fc") ||
+          hostname.startsWith("fd") ||
+          /^fe[89ab][0-9a-f]?:/.test(hostname))) ||
       hostname.endsWith(".local") ||
       hostname.endsWith(".internal") ||
       /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
@@ -90,40 +115,50 @@ function isValidUrl(input: string): boolean {
 
 async function runBrowserPhase(
   env: Env,
-  targetUrl: string
+  targetUrl: string,
+  refresh: boolean
 ): Promise<BrowserResult> {
-  const browser = await puppeteer.launch(env.BROWSER);
-  try {
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 800 });
-    await page.goto(targetUrl, {
+  const response = await env.BROWSER.quickAction("snapshot", {
+    url: targetUrl,
+    ...(refresh ? { cacheTTL: 0 } : {}),
+    formats: ["screenshot", "markdown"],
+    viewport: { width: 1280, height: 800 },
+    gotoOptions: {
       waitUntil: "networkidle2",
       timeout: 15000,
-    });
-
-    const screenshotBuffer = await page.screenshot({
+    },
+    screenshotOptions: {
       type: "jpeg",
       quality: 80,
       fullPage: false,
-    });
+    },
+  });
 
-    const screenshot = `data:image/jpeg;base64,${Buffer.from(screenshotBuffer).toString("base64")}`;
-
-    // @ts-expect-error — runs in browser context where document exists
-    const rawText = await page.evaluate(() => document.body.innerText);
-    const pageText = rawText.slice(0, 6000);
-
-    const pageTitle = await page.title();
-
-    return { screenshot, pageText, pageTitle };
-  } finally {
-    await browser.close();
+  const snapshot = await response.json<BrowserSnapshotResponse>();
+  if (!response.ok || !snapshot.success) {
+    throw new BrowserSnapshotError(
+      snapshot.errors?.[0]?.message ?? "Browser Run could not capture the page.",
+      response.status
+    );
   }
+
+  const screenshotBase64 = snapshot.result?.screenshot;
+  if (!screenshotBase64) {
+    throw new BrowserSnapshotError("Browser Run returned no screenshot.", 502);
+  }
+
+  return {
+    screenshot: `data:image/jpeg;base64,${screenshotBase64}`,
+    pageMarkdown: snapshot.result?.markdown?.slice(0, 6000) ?? "",
+    pageTitle: snapshot.meta?.title ?? "Untitled page",
+  };
 }
 
 async function runAIPhase(
   env: Env,
-  pageText: string,
+  pageMarkdown: string,
+  pageTitle: string,
+  screenshot: string,
   expectedTakeaway: string
 ): Promise<AnalysisResult> {
   const systemPrompt = `You are a brutally honest landing page critic. A user has told you what their page is SUPPOSED to communicate. Your job is to visit the page as a clueless first-time visitor, figure out what it ACTUALLY communicates, and compare the two.
@@ -138,24 +173,78 @@ You must respond with ONLY a JSON object (no markdown, no explanation outside th
   "whatsMissing": ["2-4 bullet points about information a visitor would expect but can't find"]
 }`;
 
-  const userPrompt = `THE INTENDED TAKEAWAY (what the site owner wants visitors to think):
+  const userPrompt = `PAGE TITLE:
+"${pageTitle}"
+
+THE INTENDED TAKEAWAY (what the site owner wants visitors to think):
 "${expectedTakeaway}"
 
-THE ACTUAL PAGE CONTENT (what a visitor sees):
-${pageText}`;
+THE ACTUAL PAGE CONTENT (rendered as Markdown):
+${pageMarkdown}`;
 
-  const response = (await env.AI.run("@cf/meta/llama-3.1-8b-instruct", {
+  const response = await env.AI.run("@cf/google/gemma-4-26b-a4b-it", {
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: userPrompt },
+          { type: "image_url", image_url: { url: screenshot, detail: "high" } },
+        ],
+      },
     ],
     temperature: 0.7,
-    max_tokens: 2048,
-  })) as { response?: string };
+    max_completion_tokens: 2048,
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "landing_page_analysis",
+        strict: true,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            mainTakeaway: { type: "string" },
+            grade: {
+              type: "string",
+              enum: ["A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "D-", "F"],
+            },
+            alignmentVerdict: { type: "string" },
+            whatsWorking: {
+              type: "array",
+              items: { type: "string" },
+              minItems: 2,
+              maxItems: 4,
+            },
+            whatsConfusing: {
+              type: "array",
+              items: { type: "string" },
+              minItems: 2,
+              maxItems: 4,
+            },
+            whatsMissing: {
+              type: "array",
+              items: { type: "string" },
+              minItems: 2,
+              maxItems: 4,
+            },
+          },
+          required: [
+            "mainTakeaway",
+            "grade",
+            "alignmentVerdict",
+            "whatsWorking",
+            "whatsConfusing",
+            "whatsMissing",
+          ],
+        },
+      },
+    },
+  });
 
-  const text = response.response?.trim() ?? "";
+  const text = response.choices[0]?.message.content?.trim() ?? "";
   if (!text) {
-    throw new Error("AI returned an empty response.");
+    throw new AIResponseError("AI returned an empty response.");
   }
   return parseAIResponse(text);
 }
@@ -171,11 +260,11 @@ function parseAIResponse(raw: string): AnalysisResult {
   try {
     parsed = JSON.parse(jsonStr);
   } catch {
-    throw new Error("AI response was not valid JSON.");
+    throw new AIResponseError("AI response was not valid JSON.");
   }
 
   if (!parsed || typeof parsed !== "object") {
-    throw new Error("AI response was not a JSON object.");
+    throw new AIResponseError("AI response was not a JSON object.");
   }
 
   const p = parsed as Record<string, unknown>;
@@ -187,7 +276,7 @@ function parseAIResponse(raw: string): AnalysisResult {
     !Array.isArray(p.whatsConfusing) ||
     !Array.isArray(p.whatsMissing)
   ) {
-    throw new Error("AI response was missing required fields.");
+    throw new AIResponseError("AI response was missing required fields.");
   }
 
   return {
@@ -278,14 +367,17 @@ export default {
       }
 
       try {
-        if (!body.url || !isValidUrl(body.url)) {
+        if (typeof body.url !== "string" || !isValidUrl(body.url)) {
           return Response.json(
             { error: "Invalid URL provided. Must be a valid HTTP or HTTPS URL." },
             { status: 400 }
           );
         }
 
-        if (!body.expectedTakeaway || body.expectedTakeaway.trim().length === 0) {
+        if (
+          typeof body.expectedTakeaway !== "string" ||
+          body.expectedTakeaway.trim().length === 0
+        ) {
           return Response.json(
             { error: "Expected takeaway is required." },
             { status: 400 }
@@ -299,7 +391,7 @@ export default {
           );
         }
 
-        const trimmedUrl = body.url;
+        const trimmedUrl = new URL(body.url.trim()).toString();
         const trimmedTakeaway = body.expectedTakeaway.trim();
         const id = await computeAnalysisId(trimmedUrl, trimmedTakeaway);
 
@@ -322,24 +414,33 @@ export default {
         // Browser phase
         let browserResult: BrowserResult;
         try {
-          browserResult = await runBrowserPhase(env, trimmedUrl);
+          browserResult = await runBrowserPhase(
+            env,
+            trimmedUrl,
+            body.refresh === true
+          );
         } catch (e) {
           const message =
             e instanceof Error ? e.message : "Unknown browser error";
-          if (message.includes("timeout")) {
+          if (message.toLowerCase().includes("timeout")) {
             return Response.json(
               { error: "Failed to load page: timeout after 15 seconds" },
-              { status: 500 }
+              { status: 504 }
             );
           }
+          const status =
+            e instanceof BrowserSnapshotError &&
+            (e.status === 429 || e.status === 503)
+              ? e.status
+              : 502;
           return Response.json(
             { error: `Failed to load page: ${message}` },
-            { status: 500 }
+            { status }
           );
         }
 
         // Handle pages with no text
-        if (browserResult.pageText.trim().length === 0) {
+        if (browserResult.pageMarkdown.trim().length === 0) {
           const emptyAnalysis: AnalysisResult = {
             mainTakeaway: "This page appears to have no readable text content.",
             grade: "F",
@@ -372,7 +473,9 @@ export default {
         try {
           analysis = await runAIPhase(
             env,
-            browserResult.pageText,
+            browserResult.pageMarkdown,
+            browserResult.pageTitle,
+            browserResult.screenshot,
             trimmedTakeaway
           );
         } catch (e) {
