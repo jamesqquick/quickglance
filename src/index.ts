@@ -1,7 +1,5 @@
-import puppeteer from "@cloudflare/puppeteer";
-
 interface Env {
-  BROWSER: Fetcher;
+  BROWSER: BrowserRun;
   AI: Ai;
   JQQ_BROWSER_RUN_ANALYSES: KVNamespace;
   ASSETS: Fetcher;
@@ -63,6 +61,52 @@ interface BrowserResult {
   pageTitle: string;
 }
 
+interface BrowserRun {
+  quickAction(
+    action: "snapshot",
+    options: {
+      url: string;
+      formats: ("screenshot" | "markdown")[];
+      viewport: { width: number; height: number };
+      screenshotOptions: {
+        type: "jpeg";
+        quality: number;
+        fullPage: boolean;
+      };
+      gotoOptions: {
+        waitUntil: "networkidle2";
+        timeout: number;
+      };
+    }
+  ): Promise<Response>;
+}
+
+interface BrowserSnapshotSuccessResponse {
+  success: true;
+  result: {
+    screenshot?: string;
+    markdown?: string;
+  };
+  meta: {
+    title: string;
+  };
+}
+
+interface BrowserRunErrorResponse {
+  success: false;
+  errors: { message?: string }[];
+}
+
+class BrowserRunError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number
+  ) {
+    super(message);
+    this.name = "BrowserRunError";
+  }
+}
+
 function isValidUrl(input: string): boolean {
   try {
     const parsed = new URL(input);
@@ -92,33 +136,40 @@ async function runBrowserPhase(
   env: Env,
   targetUrl: string
 ): Promise<BrowserResult> {
-  const browser = await puppeteer.launch(env.BROWSER);
-  try {
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 800 });
-    await page.goto(targetUrl, {
-      waitUntil: "networkidle2",
-      timeout: 15000,
-    });
+  const response = await env.BROWSER.quickAction("snapshot", {
+    url: targetUrl,
+    formats: ["screenshot", "markdown"],
+    viewport: { width: 1280, height: 800 },
+    screenshotOptions: { type: "jpeg", quality: 80, fullPage: false },
+    gotoOptions: { waitUntil: "networkidle2", timeout: 15_000 },
+  });
 
-    const screenshotBuffer = await page.screenshot({
-      type: "jpeg",
-      quality: 80,
-      fullPage: false,
-    });
+  const snapshot = await response.json<
+    BrowserSnapshotSuccessResponse | BrowserRunErrorResponse
+  >();
 
-    const screenshot = `data:image/jpeg;base64,${Buffer.from(screenshotBuffer).toString("base64")}`;
-
-    // @ts-expect-error — runs in browser context where document exists
-    const rawText = await page.evaluate(() => document.body.innerText);
-    const pageText = rawText.slice(0, 6000);
-
-    const pageTitle = await page.title();
-
-    return { screenshot, pageText, pageTitle };
-  } finally {
-    await browser.close();
+  if (!response.ok || !snapshot.success) {
+    const message = snapshot.success
+      ? "Browser Run could not capture the page"
+      : snapshot.errors[0]?.message;
+    throw new BrowserRunError(
+      message ?? "Browser Run request failed.",
+      response.status
+    );
   }
+
+  if (!snapshot.result.screenshot || !snapshot.result.markdown) {
+    throw new BrowserRunError(
+      "Browser Run returned an incomplete snapshot.",
+      502
+    );
+  }
+
+  return {
+    screenshot: `data:image/jpeg;base64,${snapshot.result.screenshot}`,
+    pageText: snapshot.result.markdown.slice(0, 6000),
+    pageTitle: snapshot.meta.title,
+  };
 }
 
 async function runAIPhase(
@@ -144,16 +195,21 @@ You must respond with ONLY a JSON object (no markdown, no explanation outside th
 THE ACTUAL PAGE CONTENT (what a visitor sees):
 ${pageText}`;
 
-  const response = (await env.AI.run("@cf/meta/llama-3.1-8b-instruct", {
+  const response = (await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
     temperature: 0.7,
     max_tokens: 2048,
-  })) as { response?: string };
+  })) as { response?: unknown };
 
-  const text = response.response?.trim() ?? "";
+  const text =
+    typeof response.response === "string"
+      ? response.response.trim()
+      : response.response && typeof response.response === "object"
+        ? JSON.stringify(response.response)
+        : "";
   if (!text) {
     throw new Error("AI returned an empty response.");
   }
@@ -326,7 +382,19 @@ export default {
         } catch (e) {
           const message =
             e instanceof Error ? e.message : "Unknown browser error";
-          if (message.includes("timeout")) {
+          if (e instanceof BrowserRunError && e.status === 429) {
+            return Response.json(
+              { error: "Browser Run rate limit reached. Try again shortly." },
+              { status: 429, headers: { "Retry-After": "60" } }
+            );
+          }
+          if (e instanceof BrowserRunError && e.status === 503) {
+            return Response.json(
+              { error: "Browser Run is temporarily unavailable." },
+              { status: 503 }
+            );
+          }
+          if (message.toLowerCase().includes("timeout")) {
             return Response.json(
               { error: "Failed to load page: timeout after 15 seconds" },
               { status: 500 }
