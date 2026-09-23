@@ -3,11 +3,13 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev --remote",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "cf-typegen": "wrangler types"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260923.1",
+    "@types/node": "^22.20.3",
     "typescript": "^7.0.2",
-    "wrangler": "^4.136.3"
+    "wrangler": "^4.136.1"
   }
 }

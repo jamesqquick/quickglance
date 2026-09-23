@@ -6,15 +6,14 @@ Built on Cloudflare Workers using Browser Run, Workers AI, and KV.
 
 ## How it works
 
-1. Worker calls Browser Run's `snapshot` Quick Action for the submitted URL.
-2. Receives a JPEG screenshot and Markdown extracted from the page.
-3. Sends the Markdown and the user's intended takeaway to Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`) for a structured comparison.
-4. Stores the result in KV (7-day TTL) and serves it via a shareable `/results/:id` URL.
+1. Worker uses the Browser Run `snapshot` Quick Action to capture a JPEG screenshot and rendered Markdown in one request.
+2. Sends the page Markdown, screenshot, and user's intended takeaway to Workers AI (`@cf/google/gemma-4-26b-a4b-it`) for a vision-enabled structured comparison.
+3. Stores the result in KV (7-day TTL) and serves it via a shareable `/results/:id` URL.
 
 ## Stack
 
 - Cloudflare Workers (TypeScript)
-- Browser Run Quick Actions (Browser Rendering)
+- Browser Run Quick Actions
 - Workers AI
 - Workers KV (cache)
 - Workers Assets (static HTML/CSS/JS)
@@ -43,7 +42,7 @@ Replace the `id` field in `wrangler.jsonc` under `kv_namespaces` with the value 
 
 ## Run locally
 
-Browser Rendering and Workers AI require a remote connection — there is no local emulation:
+Browser Run and Workers AI require a remote connection — there is no local emulation:
 
 ```bash
 npm run dev
@@ -75,8 +74,8 @@ wrangler.jsonc      # Worker config + bindings
 
 This is a demo project. Things to be aware of before running it in production:
 
-- **Basic IP rate limiting.** The demo limits `/api/analyze` to 10 requests per minute per IP. Adjust the `ANALYZE_LIMITER` binding for your traffic and cost profile.
+- **Basic rate limiting only.** The demo allows 10 analyses per IP per minute through a Workers Rate Limit binding; revisit the policy before exposing it at scale.
 - **Basic SSRF guard only.** The URL validator blocks common private IP ranges (`localhost`, RFC1918, link-local, `.internal`, `.local`), but does not protect against DNS rebinding or full IPv6 private-range coverage. Cloudflare's network already isolates Workers from internal infrastructure, but if you fork this for a different runtime, harden the check.
 - **Screenshots are stored in KV as base64 data URLs.** This works for a demo but R2 is a better fit for binary blobs at any real volume.
-- **Page text is truncated to 6000 characters** before being sent to the model.
+- **Page Markdown is truncated to 6000 characters** before being sent to the model alongside the screenshot.
 - **Cached results expire after 7 days.**
