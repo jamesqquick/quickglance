@@ -1,0 +1,33 @@
+package-lock.json
+  s_4c0fbefc77b262::t_58ad1959f40dcc 9,11,1243-1252,1862-1868,1901-1903
+package.json
+  s_4c0fbefc77b262::t_d0d0528a687035 6-8,11,13
+public/index.html
+  s_4c0fbefc77b262::t_177ad3ebe60d0b 970
+public/results.html
+  s_4c0fbefc77b262::t_10a6dfebafda67 943
+src/index.ts
+  s_4c0fbefc77b262::t_364c6cd098722d 36-52,57,69,73-75,79-80,82-84,91,100-103,118-119,123,126-134,137,139-140,145-147,151-153,159-161,176-179,182-183,185,188-194,197-245,247,263,267,279,370,377-380,394,417-421,428,431-435,438,443,476-478
+tsconfig.json
+  s_4c0fbefc77b262::t_d1bb3b231a39ed 12
+worker-configuration.d.ts
+  s_4c0fbefc77b262::t_b9316cce6f9481 1-15754
+wrangler.jsonc
+  s_4c0fbefc77b262::t_cd5b62e94bf976 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0a3c92602208a4dad056159cad706913d18eeb26",
+  "prompts": {},
+  "sessions": {
+    "s_4c0fbefc77b262": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f554df977ffeioQamMxV92Ofi1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "James Quick <jquick@cloudflare.com>"
+    }
+  }
+}
